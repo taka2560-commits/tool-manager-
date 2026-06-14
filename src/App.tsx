@@ -62,7 +62,7 @@ const INITIAL_TOOLS: Tool[] = [
     name: '測量座標管理アプリ (Antigravity)',
     description: '測量現場で活用できる多機能な座標管理・計算ツールです。Web技術で構築されており、スマートフォンやタブレット、PCなど様々なデバイスで動作します。',
     category: 'Web App',
-    url: 'c:/Users/taka/Documents/Antigravity',
+    url: 'https://techno-scm.vercel.app',
     githubRepo: 'taka2560-commits/Antigravity',
     instructions: '【主要機能】\n' +
       '・座標管理: 登録座標の一覧表示、入力・編集、検索、IndexedDBによる保存、CSV出力\n' +
@@ -97,7 +97,7 @@ const INITIAL_TOOLS: Tool[] = [
     name: 'webCADアプリ (Antigravity webCAD)',
     description: 'スマートデバイスやPCの両方で利用できるWebブラウザベースの2D CADアプリケーションです。測量図面や建設現場での利用に特化した設計となっています。',
     category: 'Web App',
-    url: 'c:/Users/taka/Documents/Antigravity webCAD',
+    url: 'https://antigravity-web-cad.vercel.app',
     githubRepo: 'taka2560-commits/webCAD',
     instructions: '【主要機能】\n' +
       '・DWG & DXF の高精度読み込み: WebAssembly (libredwg-web) によるブラウザ内パースと描画\n' +
@@ -135,7 +135,7 @@ const INITIAL_TOOLS: Tool[] = [
     name: '杭管理ツール (Antigravity 杭管理ツール)',
     description: '杭の実測完了データを管理し、棟ごとの進捗状況や毎月20日締めの月次レポートを可視化・出力するためのWebアプリケーションです。',
     category: 'Web App',
-    url: 'c:/Users/taka/Documents/Antigravity 杭管理ツール',
+    url: 'https://kui-kanri.vercel.app',
     githubRepo: 'taka2560-commits/KUI_kanri',
     instructions: '【主要機能】\n' +
       '・進捗可視化: 現場全体の合計完了・残数表示、棟別の進捗率棒グラフ（Recharts）表示\n' +
@@ -188,7 +188,7 @@ const INITIAL_TOOLS: Tool[] = [
     name: '作業日報自動入力システム (nippo-app)',
     description: '現場作業者向けの、シンプルで使いやすい作業日報入力アプリです。スマートフォンでの操作に最適化されており、PWAとして動作します。',
     category: 'Web App',
-    url: 'c:/Users/taka/Documents/Antigravity 日報自動入力/nippo-app',
+    url: 'https://nippo-app.vercel.app',
     githubRepo: 'taka2560-commits/nippo-app',
     instructions: '【主要機能】\n' +
       '・簡単入力: マスタ登録された選択肢から選ぶだけで、スムーズに日報を作成\n' +
