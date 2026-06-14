@@ -309,12 +309,29 @@ const renderInstructions = (text: string) => {
 };
 
 export default function App() {
-  // LocalStorageからツール情報を復元、なければ初期データを使用
+  // LocalStorageからツール情報を復元、なければ初期データを使用。
+  // 基本的な設定（URLやGitHubリポジトリ）はコード側の最新（INITIAL_TOOLS）を優先してマージする
   const [tools, setTools] = useState<Tool[]>(() => {
     const saved = localStorage.getItem('tool_manager_tools');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed: Tool[] = JSON.parse(saved);
+        return INITIAL_TOOLS.map(initialTool => {
+          const savedTool = parsed.find(t => t.id === initialTool.id);
+          if (savedTool) {
+            return {
+              ...savedTool,
+              url: initialTool.url, // 最新のVercel本番URLを強制適用
+              githubRepo: initialTool.githubRepo, // 最新のGitHubリポジトリを強制適用
+              description: initialTool.description,
+              instructions: initialTool.instructions
+            };
+          }
+          return initialTool;
+        }).concat(
+          // ユーザー自身が新規追加したツール（INITIAL_TOOLSにないもの）はそのまま維持
+          parsed.filter(t => !INITIAL_TOOLS.some(it => it.id === t.id))
+        );
       } catch (e) {
         console.error('Failed to parse tools from localStorage', e);
       }
