@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #619224;
+  --color-secondary: #2B6A1A;
+  --color-accent: #803DF5;
+  --color-darkbg: #1F221C;
+  --color-darkbg-sub: #151713;
+  --color-darktext: #DDE4D6;
+}
+
+body {
+  margin: 0;
+  background-color: #1F221C;
+  color: #DDE4D6;
+  font-family: 'Outfit', 'Noto Sans JP', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* カスタムスクロールバー */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #151713;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(43, 106, 26, 0.3);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(97, 146, 36, 0.5);
+}
+
+/* スムーズスクロール */
+html {
+  scroll-behavior: smooth;
+}
+
+/* グロー効果 */
+.shadow-glow-accent {
+  box-shadow: 0 0 15px rgba(128, 61, 245, 0.15);
+}
+
+.shadow-glow-accent-hover:hover {
+  box-shadow: 0 0 20px rgba(128, 61, 245, 0.35);
+}
+
+.shadow-glow-primary-hover:hover {
+  box-shadow: 0 0 20px rgba(97, 146, 36, 0.35);
+}
+
+/* フェードインアニメーション */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.45s cubic-bezier(0.215, 0.610, 0.355, 1.000) forwards;
+}
