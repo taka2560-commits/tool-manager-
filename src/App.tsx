@@ -246,20 +246,41 @@ const renderInstructions = (text: string) => {
   if (!text) return <p className="text-[#DDE4D6]/50 text-xs font-medium">操作手順は登録されていません。</p>;
 
   return text.split('\n').map((line, index) => {
-    // 【見出し】の判定
-    if (line.startsWith('【') && line.endsWith('】')) {
+    const trimmed = line.trim();
+
+    // Markdown見出し: #, ##, ###, ####
+    const headerMatch = line.match(/^(#{1,6})\s+(.*)$/);
+    if (headerMatch) {
+      const level = headerMatch[1].length;
+      const title = headerMatch[2];
+      
+      // レベルに応じたフォントサイズ調整
+      const sizeClass = level === 1 ? 'text-base font-black mt-6 mb-4 border-b border-[#2B6A1A]/20 pb-2.5' : 
+                        level === 2 ? 'text-sm font-black mt-5 mb-3.5' : 'text-xs font-bold mt-4 mb-2.5';
+      return (
+        <h4 
+          key={index} 
+          className={`text-[#619224] tracking-wider flex items-center gap-2 border-l-2 border-[#619224] pl-2.5 ${sizeClass}`}
+        >
+          {title}
+        </h4>
+      );
+    }
+
+    // 【見出し】の判定 (従来互換)
+    if (trimmed.startsWith('【') && trimmed.endsWith('】')) {
       return (
         <h4 
           key={index} 
           className="text-[#619224] font-black text-sm tracking-wider mt-5 mb-3.5 first:mt-0 flex items-center gap-2 border-l-2 border-[#619224] pl-2.5"
         >
-          {line.slice(1, -1)}
+          {trimmed.slice(1, -1)}
         </h4>
       );
     }
     
-    // 箇条書き・手順（1. や - ）の判定
-    if (line.match(/^(\d+\.|-)\s+/)) {
+    // 箇条書き・手順（1. や - や * ）の判定
+    if (line.match(/^(\s*)(\d+\.|-|\*)\s+/)) {
       return (
         <p 
           key={index} 
@@ -271,7 +292,7 @@ const renderInstructions = (text: string) => {
     }
     
     // 空行の判定（余白を適度に確保）
-    if (line.trim() === '') {
+    if (trimmed === '') {
       return <div key={index} className="h-3" />;
     }
 
@@ -288,8 +309,30 @@ const renderInstructions = (text: string) => {
 };
 
 export default function App() {
-  const [tools, setTools] = useState<Tool[]>(INITIAL_TOOLS);
-  const [selectedToolId, setSelectedToolId] = useState<string | null>(INITIAL_TOOLS[0].id);
+  // LocalStorageからツール情報を復元、なければ初期データを使用
+  const [tools, setTools] = useState<Tool[]>(() => {
+    const saved = localStorage.getItem('tool_manager_tools');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error('Failed to parse tools from localStorage', e);
+      }
+    }
+    return INITIAL_TOOLS;
+  });
+
+  const [selectedToolId, setSelectedToolId] = useState<string | null>(() => {
+    const saved = localStorage.getItem('tool_manager_tools');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.length > 0) return parsed[0].id;
+      } catch (e) {}
+    }
+    return INITIAL_TOOLS[0].id;
+  });
+
   const [searchQuery, setSearchQuery] = useState('');
   
   // モード: 'view' | 'edit_tool' | 'add_tool'
@@ -301,6 +344,13 @@ export default function App() {
   const [isLoadingCommits, setIsLoadingCommits] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
 
+  // README同期用のステート
+  const [dynamicReadmes, setDynamicReadmes] = useState<Record<string, string>>({});
+  const [isLoadingReadme, setIsLoadingReadme] = useState(false);
+
+  // ヘルスチェック用のステート
+  const [toolStatuses, setToolStatuses] = useState<Record<string, 'active' | 'offline' | 'local' | 'checking'>>({});
+
   // 編集/追加用のステート
   const [formData, setFormData] = useState<Tool | null>(null);
   const [newHistory, setNewHistory] = useState<{ date: string; version: string; changes: string }>({ 
@@ -308,6 +358,11 @@ export default function App() {
     version: '', 
     changes: '' 
   });
+
+  // tools の変更を LocalStorage に保存
+  useEffect(() => {
+    localStorage.setItem('tool_manager_tools', JSON.stringify(tools));
+  }, [tools]);
 
   const filteredTools = useMemo(() => {
     return tools.filter(t => 
@@ -391,7 +446,7 @@ export default function App() {
     setNewHistory({ date: new Date().toISOString().split('T')[0], version: '', changes: '' });
   };
 
-  // GitHub APIからのデータ取得
+  // GitHub APIからのコミット履歴データ取得
   useEffect(() => {
     if (activeTab === 'history' && selectedTool?.githubRepo) {
       const repo = selectedTool.githubRepo;
@@ -432,6 +487,97 @@ export default function App() {
     }
   }, [activeTab, selectedTool?.githubRepo, commitsCache]);
 
+  // GitHub APIからの README 取得
+  useEffect(() => {
+    if (activeTab === 'instructions' && selectedTool?.githubRepo) {
+      const repo = selectedTool.githubRepo;
+      const toolId = selectedTool.id;
+
+      if (dynamicReadmes[toolId]) return; // すでにキャッシュされていればスキップ
+
+      const fetchReadme = async () => {
+        setIsLoadingReadme(true);
+        try {
+          const response = await fetch(`https://api.github.com/repos/${repo}/readme`);
+          if (!response.ok) {
+            throw new Error('READMEの同期に失敗しました');
+          }
+          const data = await response.json();
+          // UTF-8対応のデコード処理
+          const decoded = decodeURIComponent(
+            escape(window.atob(data.content.replace(/\s/g, '')))
+          );
+          setDynamicReadmes(prev => ({ ...prev, [toolId]: decoded }));
+        } catch (err: any) {
+          console.error(err.message);
+        } finally {
+          setIsLoadingReadme(false);
+        }
+      };
+
+      fetchReadme();
+    }
+  }, [activeTab, selectedToolId, selectedTool?.githubRepo, dynamicReadmes]);
+
+  // 各ツールのヘルスチェック (Webツールのみ)
+  useEffect(() => {
+    const checkStatuses = async () => {
+      const newStatuses = { ...toolStatuses };
+      let changed = false;
+      
+      for (const tool of tools) {
+        if (!tool.url) {
+          if (newStatuses[tool.id] !== 'local') {
+            newStatuses[tool.id] = 'local';
+            changed = true;
+          }
+          continue;
+        }
+
+        const isWebUrl = tool.url.startsWith('http://') || tool.url.startsWith('https://');
+        if (!isWebUrl) {
+          if (newStatuses[tool.id] !== 'local') {
+            newStatuses[tool.id] = 'local';
+            changed = true;
+          }
+          continue;
+        }
+
+        // すでに確認済みならスキップ (リトライが必要な場合は将来的にリセット)
+        if (newStatuses[tool.id] === 'active' || newStatuses[tool.id] === 'offline') {
+          continue;
+        }
+
+        newStatuses[tool.id] = 'checking';
+        setToolStatuses({ ...newStatuses });
+
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 6000); // 6秒タイムアウト
+
+          // no-cors でフェッチして疎通テストを行う (CORSを回避)
+          await fetch(tool.url, {
+            method: 'GET',
+            mode: 'no-cors',
+            signal: controller.signal
+          });
+
+          clearTimeout(timeoutId);
+          newStatuses[tool.id] = 'active';
+        } catch (e) {
+          newStatuses[tool.id] = 'offline';
+        }
+        changed = true;
+      }
+      
+      if (changed) {
+        setToolStatuses({ ...newStatuses });
+      }
+    };
+
+    checkStatuses();
+  }, [tools]);
+
   // 手動履歴とGitHubコミットを統合して日付順にソート
   const combinedHistory = useMemo(() => {
     if (!selectedTool) return [];
@@ -452,6 +598,22 @@ export default function App() {
   }, [selectedTool, commitsCache]);
 
   // --- UIコンポーネント ---
+
+  // ステータスインジケーターの描画
+  const getStatusIndicator = (id: string) => {
+    const status = toolStatuses[id] || 'local';
+    if (status === 'checking') {
+      return <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse shrink-0" title="接続確認中..." />;
+    }
+    if (status === 'active') {
+      return <span className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e] shrink-0" title="Web上で稼働中" />;
+    }
+    if (status === 'offline') {
+      return <span className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444] shrink-0" title="オフライン・応答なし" />;
+    }
+    // 'local'
+    return <span className="w-2 h-2 rounded-full bg-[#DDE4D6]/20 shrink-0" title="ローカル環境専用" />;
+  };
 
   const Sidebar = () => (
     <div className="w-80 bg-[#151713]/90 backdrop-blur-lg border-r border-[#2B6A1A]/20 flex flex-col h-screen transition-all">
@@ -486,8 +648,11 @@ export default function App() {
             {selectedToolId === tool.id && mode !== 'add_tool' && (
               <span className="absolute left-0 top-3.5 bottom-3.5 w-1 bg-[#619224] rounded-r-md" />
             )}
-            <div className="truncate">{tool.name}</div>
-            <div className={`text-[10px] mt-1 font-extrabold tracking-wider uppercase ${selectedToolId === tool.id && mode !== 'add_tool' ? 'text-[#DDE4D6]/80' : 'text-[#DDE4D6]/40'}`}>
+            <div className="flex items-center gap-2.5">
+              {getStatusIndicator(tool.id)}
+              <div className="truncate flex-1">{tool.name}</div>
+            </div>
+            <div className={`text-[10px] mt-1 pl-4.5 font-extrabold tracking-wider uppercase ${selectedToolId === tool.id && mode !== 'add_tool' ? 'text-[#DDE4D6]/80' : 'text-[#DDE4D6]/40'}`}>
               {tool.category}
             </div>
           </button>
@@ -586,13 +751,28 @@ export default function App() {
         <div className="flex-1 overflow-y-auto p-8 bg-[#151713] transition-all duration-300 flex flex-col items-start justify-start">
           {activeTab === 'instructions' ? (
             <div className="w-full max-w-5xl bg-[#2A2E25] p-8 rounded-2xl border border-[#2B6A1A]/25 shadow-md animate-fade-in">
-              <h3 className="text-lg font-black mb-5 text-[#DDE4D6] flex items-center gap-2 border-b border-[#2B6A1A]/10 pb-3">
-                <FileText className="w-5 h-5 text-[#619224] -translate-y-[0.5px]" />
-                操作マニュアル
+              <h3 className="text-lg font-black mb-5 text-[#DDE4D6] flex justify-between items-center border-b border-[#2B6A1A]/10 pb-3">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-[#619224] -translate-y-[0.5px]" />
+                  操作マニュアル
+                </div>
+                {dynamicReadmes[selectedTool.id] && (
+                  <span className="text-[9px] uppercase font-black tracking-wider bg-[#2B6A1A]/35 text-[#DDE4D6]/85 px-2 py-0.5 rounded-md border border-[#2B6A1A]/40 flex items-center gap-1.5 shadow-sm">
+                    <GithubIcon className="w-3 h-3 text-[#619224] -translate-y-[0.5px]" /> GitHubから同期済み
+                  </span>
+                )}
               </h3>
-              <div className="bg-[#151713]/80 p-6 rounded-xl border border-[#2B6A1A]/15 shadow-inner">
-                {renderInstructions(selectedTool.instructions)}
-              </div>
+              
+              {isLoadingReadme ? (
+                <div className="bg-[#151713]/80 p-12 rounded-xl border border-[#2B6A1A]/15 shadow-inner flex flex-col items-center justify-center">
+                  <div className="w-6 h-6 border-2 border-[#619224] border-t-transparent rounded-full animate-spin mb-3.5"></div>
+                  <span className="text-xs font-bold text-[#DDE4D6]/60">GitHubから最新マニュアルを読み込み中...</span>
+                </div>
+              ) : (
+                <div className="bg-[#151713]/80 p-6 rounded-xl border border-[#2B6A1A]/15 shadow-inner">
+                  {renderInstructions(dynamicReadmes[selectedTool.id] || selectedTool.instructions)}
+                </div>
+              )}
             </div>
           ) : (
             <div className="w-full max-w-5xl animate-fade-in">
