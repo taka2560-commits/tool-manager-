@@ -1,13 +1,13 @@
 import { useState, useMemo, useEffect } from 'react';
-import { 
-  FolderGit2, 
-  Plus, 
-  Search, 
-  FileText, 
-  History, 
-  ExternalLink, 
-  Edit3, 
-  Save, 
+import {
+  FolderGit2,
+  Plus,
+  Search,
+  FileText,
+  History,
+  ExternalLink,
+  Edit3,
+  Save,
   Trash2,
   Clock,
   GitCommit
@@ -55,7 +55,7 @@ interface Tool {
   history: HistoryItem[];
 }
 
-// 初期実データ
+// 初期実データ (tools.json取得失敗時のフォールバック)
 const INITIAL_TOOLS: Tool[] = [
   {
     id: 't1',
@@ -253,13 +253,13 @@ const renderInstructions = (text: string) => {
     if (headerMatch) {
       const level = headerMatch[1].length;
       const title = headerMatch[2];
-      
+
       // レベルに応じたフォントサイズ調整
-      const sizeClass = level === 1 ? 'text-base font-black mt-6 mb-4 border-b border-[#2B6A1A]/20 pb-2.5' : 
+      const sizeClass = level === 1 ? 'text-base font-black mt-6 mb-4 border-b border-[#2B6A1A]/20 pb-2.5' :
                         level === 2 ? 'text-sm font-black mt-5 mb-3.5' : 'text-xs font-bold mt-4 mb-2.5';
       return (
-        <h4 
-          key={index} 
+        <h4
+          key={index}
           className={`text-[#619224] tracking-wider flex items-center gap-2 border-l-2 border-[#619224] pl-2.5 ${sizeClass}`}
         >
           {title}
@@ -270,27 +270,27 @@ const renderInstructions = (text: string) => {
     // 【見出し】の判定 (従来互換)
     if (trimmed.startsWith('【') && trimmed.endsWith('】')) {
       return (
-        <h4 
-          key={index} 
+        <h4
+          key={index}
           className="text-[#619224] font-black text-sm tracking-wider mt-5 mb-3.5 first:mt-0 flex items-center gap-2 border-l-2 border-[#619224] pl-2.5"
         >
           {trimmed.slice(1, -1)}
         </h4>
       );
     }
-    
+
     // 箇条書き・手順（1. や - や * ）の判定
     if (line.match(/^(\s*)(\d+\.|-|\*)\s+/)) {
       return (
-        <p 
-          key={index} 
+        <p
+          key={index}
           className="text-[#DDE4D6]/90 text-[13px] leading-relaxed pl-5 -indent-5 mb-2.5 font-medium"
         >
           {line}
         </p>
       );
     }
-    
+
     // 空行の判定（余白を適度に確保）
     if (trimmed === '') {
       return <div key={index} className="h-3" />;
@@ -298,8 +298,8 @@ const renderInstructions = (text: string) => {
 
     // 一般行
     return (
-      <p 
-        key={index} 
+      <p
+        key={index}
         className="text-[#DDE4D6]/90 text-[13px] leading-relaxed mb-2 font-medium"
       >
         {line}
@@ -309,29 +309,13 @@ const renderInstructions = (text: string) => {
 };
 
 export default function App() {
-  // LocalStorageからツール情報を復元、なければ初期データを使用。
-  // 基本的な設定（URLやGitHubリポジトリ）はコード側の最新（INITIAL_TOOLS）を優先してマージする
+  // [修正] LocalStorageの編集内容をそのまま復元する（上書きしない）
+  // tools.json からの新規ツール追加は別の useEffect で処理
   const [tools, setTools] = useState<Tool[]>(() => {
     const saved = localStorage.getItem('tool_manager_tools');
     if (saved) {
       try {
-        const parsed: Tool[] = JSON.parse(saved);
-        return INITIAL_TOOLS.map(initialTool => {
-          const savedTool = parsed.find(t => t.id === initialTool.id);
-          if (savedTool) {
-            return {
-              ...savedTool,
-              url: initialTool.url, // 最新のVercel本番URLを強制適用
-              githubRepo: initialTool.githubRepo, // 最新のGitHubリポジトリを強制適用
-              description: initialTool.description,
-              instructions: initialTool.instructions
-            };
-          }
-          return initialTool;
-        }).concat(
-          // ユーザー自身が新規追加したツール（INITIAL_TOOLSにないもの）はそのまま維持
-          parsed.filter(t => !INITIAL_TOOLS.some(it => it.id === t.id))
-        );
+        return JSON.parse(saved);
       } catch (e) {
         console.error('Failed to parse tools from localStorage', e);
       }
@@ -351,7 +335,7 @@ export default function App() {
   });
 
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // モード: 'view' | 'edit_tool' | 'add_tool'
   const [mode, setMode] = useState<string>('view');
   const [activeTab, setActiveTab] = useState<string>('instructions');
@@ -370,10 +354,10 @@ export default function App() {
 
   // 編集/追加用のステート
   const [formData, setFormData] = useState<Tool | null>(null);
-  const [newHistory, setNewHistory] = useState<{ date: string; version: string; changes: string }>({ 
-    date: new Date().toISOString().split('T')[0], 
-    version: '', 
-    changes: '' 
+  const [newHistory, setNewHistory] = useState<{ date: string; version: string; changes: string }>({
+    date: new Date().toISOString().split('T')[0],
+    version: '',
+    changes: ''
   });
 
   // tools の変更を LocalStorage に保存
@@ -381,8 +365,30 @@ export default function App() {
     localStorage.setItem('tool_manager_tools', JSON.stringify(tools));
   }, [tools]);
 
+  // [新機能] リモートの tools.json から新規ツールを検出して自動追加
+  // git push → Vercel デプロイ後、tools.json に追加されたツールが自動で反映される
+  useEffect(() => {
+    const fetchRemoteTools = async () => {
+      try {
+        const res = await fetch('/tools.json');
+        if (!res.ok) return;
+        const remoteTools: Tool[] = await res.json();
+
+        setTools(current => {
+          const currentIds = new Set(current.map(t => t.id));
+          const newTools = remoteTools.filter(t => !currentIds.has(t.id));
+          if (newTools.length === 0) return current; // 新規なし → 更新しない
+          return [...current, ...newTools];
+        });
+      } catch (e) {
+        console.error('Failed to fetch remote tools', e);
+      }
+    };
+    fetchRemoteTools();
+  }, []);
+
   const filteredTools = useMemo(() => {
-    return tools.filter(t => 
+    return tools.filter(t =>
       t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.category.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -467,9 +473,9 @@ export default function App() {
   useEffect(() => {
     if (activeTab === 'history' && selectedTool?.githubRepo) {
       const repo = selectedTool.githubRepo;
-      
+
       // キャッシュがあればスキップ
-      if (commitsCache[repo]) return; 
+      if (commitsCache[repo]) return;
 
       const fetchCommits = async () => {
         setIsLoadingCommits(true);
@@ -480,7 +486,7 @@ export default function App() {
             throw new Error(response.status === 404 ? 'リポジトリが見つかりません' : 'コミット履歴の取得に失敗しました');
           }
           const data = await response.json();
-          
+
           const formattedCommits: HistoryItem[] = data.map((c: any) => ({
             id: c.sha,
             type: 'github',
@@ -541,7 +547,7 @@ export default function App() {
     const checkStatuses = async () => {
       const newStatuses = { ...toolStatuses };
       let changed = false;
-      
+
       for (const tool of tools) {
         if (!tool.url) {
           if (newStatuses[tool.id] !== 'local') {
@@ -586,7 +592,7 @@ export default function App() {
         }
         changed = true;
       }
-      
+
       if (changed) {
         setToolStatuses({ ...newStatuses });
       }
@@ -598,15 +604,15 @@ export default function App() {
   // 手動履歴とGitHubコミットを統合して日付順にソート
   const combinedHistory = useMemo(() => {
     if (!selectedTool) return [];
-    
-    const manualHistory: HistoryItem[] = (selectedTool.history || []).map(h => ({ 
-      ...h, 
+
+    const manualHistory: HistoryItem[] = (selectedTool.history || []).map(h => ({
+      ...h,
       type: 'manual',
-      timestamp: new Date(h.date).getTime() 
+      timestamp: new Date(h.date).getTime()
     }));
-    
+
     const githubHistory = commitsCache[selectedTool?.githubRepo] || [];
-    
+
     return [...manualHistory, ...githubHistory].sort((a, b) => {
       const tsA = a.timestamp || 0;
       const tsB = b.timestamp || 0;
@@ -650,7 +656,7 @@ export default function App() {
           />
         </div>
       </div>
-      
+
       <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
         {filteredTools.map(tool => (
           <button
@@ -658,7 +664,7 @@ export default function App() {
             onClick={() => handleSelectTool(tool.id)}
             className={`relative w-full text-left px-5 py-4 rounded-xl transition-all duration-300 active:scale-[0.98] ${
               selectedToolId === tool.id && mode !== 'add_tool'
-                ? 'bg-[#2B6A1A]/85 text-[#DDE4D6] shadow-[0_4px_16px_rgba(43,106,26,0.25)] border border-[#619224]/40 font-bold' 
+                ? 'bg-[#2B6A1A]/85 text-[#DDE4D6] shadow-[0_4px_16px_rgba(43,106,26,0.25)] border border-[#619224]/40 font-bold'
                 : 'bg-[#1F221C]/45 hover:bg-[#2B6A1A]/20 border border-[#2B6A1A]/10 text-[#DDE4D6]/60 hover:text-[#DDE4D6] shadow-sm'
             }`}
           >
@@ -721,7 +727,7 @@ export default function App() {
             </div>
           </div>
           <p className="text-[#DDE4D6]/70 text-base leading-relaxed max-w-4xl font-medium">{selectedTool.description}</p>
-          
+
           <div className="mt-6 flex flex-wrap gap-3">
             {selectedTool.url && (
               <div className="flex items-center gap-2 text-[#619224] bg-[#619224]/10 border border-[#619224]/20 px-3.5 py-2 rounded-xl max-w-full shadow-sm">
@@ -779,7 +785,7 @@ export default function App() {
                   </span>
                 )}
               </h3>
-              
+
               {isLoadingReadme ? (
                 <div className="bg-[#151713]/80 p-12 rounded-xl border border-[#2B6A1A]/15 shadow-inner flex flex-col items-center justify-center">
                   <div className="w-6 h-6 border-2 border-[#619224] border-t-transparent rounded-full animate-spin mb-3.5"></div>
@@ -827,23 +833,23 @@ export default function App() {
 
               {/* 履歴タイムライン */}
               <div className="space-y-6 relative before:absolute before:inset-0 before:ml-6 md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-[#2B6A1A]/30 before:via-[#2B6A1A]/30 before:to-transparent">
-                
+
                 {isLoadingCommits && (
                   <div className="text-center py-8 bg-[#2A2E25] rounded-2xl border border-[#2B6A1A]/20 shadow-md flex flex-col items-center justify-center mb-6 relative z-10 animate-fade-in">
                     <div className="w-6 h-6 border-2 border-[#619224] border-t-transparent rounded-full animate-spin mb-3.5"></div>
                     <span className="text-xs font-bold text-[#DDE4D6]/60">GitHubからコミット履歴を取得中...</span>
                   </div>
                 )}
-                
+
                 {commitError && (
                   <div className="text-center py-4 px-6 text-red-400 text-xs font-bold bg-red-500/10 border border-red-500/15 rounded-xl mb-6 relative z-10 animate-fade-in">
-                    ⚠️ {commitError}
+                    {commitError}
                   </div>
                 )}
 
                 {combinedHistory.map((item, index) => (
-                  <div 
-                    key={item.id} 
+                  <div
+                    key={item.id}
                     className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group animate-fade-in"
                     style={{ animationDelay: `${Math.min(index * 50, 400)}ms` }}
                   >
@@ -856,8 +862,8 @@ export default function App() {
 
                     {/* コンテンツカード */}
                     <div className={`w-[calc(100%-3.5rem)] md:w-[calc(50%-2.5rem)] bg-[#2A2E25] p-5 rounded-2xl border shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.22)] ${
-                      item.type === 'github' 
-                        ? 'border-[#2B6A1A]/20 hover:border-[#2B6A1A]/50' 
+                      item.type === 'github'
+                        ? 'border-[#2B6A1A]/20 hover:border-[#2B6A1A]/50'
                         : 'border-[#619224]/20 hover:border-[#619224]/50 ring-1 ring-[#619224]/5 hover:ring-[#619224]/10'
                     }`}>
                       <div className="flex items-center justify-between mb-3.5">
@@ -871,13 +877,13 @@ export default function App() {
                         </div>
                         <span className="text-[10px] font-bold text-[#DDE4D6]/50 bg-[#151713] border border-[#2B6A1A]/20 px-2.5 py-0.5 rounded-full">{item.date}</span>
                       </div>
-                      
+
                       <p className="text-[#DDE4D6]/90 text-xs whitespace-pre-wrap leading-relaxed font-semibold">{item.changes}</p>
-                      
+
                       {item.type === 'github' && (
                         <div className="mt-4 pt-3 border-t border-[#2B6A1A]/15 flex items-center justify-between text-[10px] font-bold text-[#DDE4D6]/40">
                           <span className="flex items-center gap-1.5">
-                            <span className="w-4 h-4 bg-[#2B6A1A]/40 rounded-full flex items-center justify-center text-[7px] text-[#DDE4D6]">👤</span>
+                            <span className="w-4 h-4 bg-[#2B6A1A]/40 rounded-full flex items-center justify-center text-[7px] text-[#DDE4D6]">&#x1F464;</span>
                             {item.author}
                           </span>
                           <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-[#803DF5] hover:text-[#803DF5]/80 hover:underline flex items-center gap-1 transition-all duration-200">
@@ -911,13 +917,13 @@ export default function App() {
             {mode === 'add_tool' ? '✨ 新規ツールの登録' : '✏️ ツール情報の編集'}
           </h2>
           <div className="flex gap-2.5">
-            <button 
+            <button
               onClick={() => setMode('view')}
               className="px-5 py-2 text-[#DDE4D6]/60 hover:bg-[#2B6A1A]/15 hover:text-[#DDE4D6] rounded-xl text-xs font-bold transition-all duration-300"
             >
               キャンセル
             </button>
-            <button 
+            <button
               onClick={handleSaveTool}
               className="px-6 py-2 bg-[#619224] hover:bg-[#2B6A1A] text-white rounded-xl text-xs font-black flex items-center gap-2 transition-all duration-300 active:scale-95 shadow-md shadow-[#619224]/10 hover:shadow-glow-primary-hover"
             >
@@ -928,7 +934,7 @@ export default function App() {
 
         <div className="flex-1 overflow-y-auto p-8">
           <div className="max-w-3xl mx-auto bg-[#2A2E25] rounded-3xl shadow-[0_12px_36px_rgba(0,0,0,0.25)] border border-[#2B6A1A]/20 p-8 space-y-6 animate-fade-in">
-            
+
             <div>
               <label className="block text-xs font-black text-[#DDE4D6]/70 mb-2 uppercase tracking-wider">ツール名 <span className="text-red-400">*</span></label>
               <input
@@ -1001,7 +1007,7 @@ export default function App() {
                   onChange={e => setFormData({...formData, instructions: e.target.value})}
                   rows={8}
                   className="w-full p-4 bg-[#1F221C]/75 text-[#DDE4D6] text-xs outline-none resize-y leading-relaxed placeholder-[#DDE4D6]/20"
-                  placeholder="1. ここをクリック&#10;2. パラメータを入力&#10;3. 実行ボタンを押す"
+                  placeholder={"1. ここをクリック\n2. パラメータを入力\n3. 実行ボタンを押す"}
                 />
               </div>
             </div>
