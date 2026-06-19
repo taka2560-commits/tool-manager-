@@ -701,13 +701,14 @@ export default function App() {
 
   const ViewModeContent = () => {
     if (!selectedTool) return (
-      <div className="flex-1 flex items-center justify-center text-[#DDE4D6]/40 bg-[#151713]/90 font-medium">
-        ツールが選択されていません
+      <div className="flex-1 flex items-center justify-center text-[#DDE4D6]/40 bg-[#151713]/90 font-medium relative overflow-hidden">
+        <div className="absolute inset-0 opacity-[0.12]" style={{ backgroundImage: 'url(/meridian-silence.png)', backgroundSize: 'cover', backgroundPosition: 'center' }} />
+        <span className="relative z-10">ツールが選択されていません</span>
       </div>
     );
 
     return (
-      <div className="flex-1 flex flex-col h-screen overflow-hidden bg-[#1D201A] animate-fade-in">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden bg-[#1D201A] animate-fade-in relative">
         {/* ヘッダー */}
         <div className="px-8 py-8 border-b border-[#2B6A1A]/20 bg-gradient-to-b from-[#151713]/90 to-[#232720]/45 backdrop-blur-sm">
           <div className="flex justify-between items-start mb-4">
@@ -771,9 +772,10 @@ export default function App() {
         </div>
 
         {/* コンテンツエリア */}
-        <div className="flex-1 overflow-y-auto p-8 bg-[#151713] transition-all duration-300 flex flex-col items-start justify-start">
+        <div className="flex-1 overflow-y-auto p-8 bg-[#151713] transition-all duration-300 flex flex-col items-start justify-start relative">
+          <div className="absolute inset-0 opacity-[0.08] pointer-events-none" style={{ backgroundImage: 'url(/meridian-silence.png)', backgroundSize: 'cover', backgroundPosition: 'center top' }} />
           {activeTab === 'instructions' ? (
-            <div className="w-full max-w-5xl bg-[#2A2E25] p-8 rounded-2xl border border-[#2B6A1A]/25 shadow-md animate-fade-in">
+            <div className="w-full max-w-5xl bg-[#2A2E25]/95 p-8 rounded-2xl border border-[#2B6A1A]/25 shadow-md animate-fade-in relative z-10 backdrop-blur-sm">
               <h3 className="text-lg font-black mb-5 text-[#DDE4D6] flex justify-between items-center border-b border-[#2B6A1A]/10 pb-3">
                 <div className="flex items-center gap-2">
                   <FileText className="w-5 h-5 text-[#619224] -translate-y-[0.5px]" />
@@ -798,7 +800,7 @@ export default function App() {
               )}
             </div>
           ) : (
-            <div className="w-full max-w-5xl animate-fade-in">
+            <div className="w-full max-w-5xl animate-fade-in relative z-10">
               {/* 履歴追加フォーム */}
               <div className="bg-[#2A2E25] p-6 rounded-2xl border border-[#2B6A1A]/20 shadow-md mb-8">
                 <h4 className="text-sm font-black text-[#DDE4D6] mb-4 flex items-center gap-2">
